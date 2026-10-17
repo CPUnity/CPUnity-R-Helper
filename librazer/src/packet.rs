@@ -46,6 +46,11 @@ impl Packet {
         }
     }
 
+    /// Read ("get") commands have bit 7 set in the command id (0x0d82, 0x0792, ...).
+    pub fn is_query(&self) -> bool {
+        self.command_id & 0x80 != 0
+    }
+
     pub fn set_args(&mut self, args: &[u8]) {
         self.args[..args.len()].copy_from_slice(args)
     }

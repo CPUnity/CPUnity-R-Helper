@@ -22,6 +22,14 @@ fn read_device_model() -> Result<String> {
     anyhow::bail!("Automatic model detection is not implemented for this platform")
 }
 
+/// Number of HID report retries since start (the EC answered with something else, e.g. while
+/// Razer Chroma/Synapse talk to the same device). Exposed for diagnostics.
+static RETRY_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub fn retry_count() -> u64 {
+    RETRY_COUNT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 impl Device {
     const RAZER_VID: u16 = 0x1532;
 
@@ -83,8 +91,14 @@ impl Device {
                 return Err(anyhow!("Failed to match report after {} attempts", MAX_RETRIES));
             }
 
-            // Add a small delay before retrying
-            thread::sleep(time::Duration::from_millis(500));
+            RETRY_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+            // Back-off before retrying. The EC can need a while to commit some changes
+            // (perf mode switches), so writes keep the upstream-proven 500 ms. Reads just hit a
+            // busy channel (Razer Chroma/Synapse talking to the same device), so retry quickly
+            // instead of freezing the UI thread for half a second per attempt.
+            let backoff_ms = if report.is_query() { 15 } else { 500 };
+            thread::sleep(time::Duration::from_millis(backoff_ms));
         }
 
         Err(anyhow!("Failed to send feature report"))

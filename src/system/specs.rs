@@ -33,7 +33,7 @@ pub fn get_system_specs(device_name: Option<&str>) -> SystemSpecs {
 }
 
 // Short and robust: keep up to the year if present; otherwise keep up to the inch size after "Blade".
-fn simplify_model_name(name: &str) -> String {
+pub fn simplify_model_name(name: &str) -> String {
     let s = name.trim();
     // Prefer: everything up to closing paren of the year
     if let Some(open) = s.find('(') {

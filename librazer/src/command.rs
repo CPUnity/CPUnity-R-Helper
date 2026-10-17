@@ -206,12 +206,38 @@ pub fn set_lights_always_on(device: &Device, lights_always_on: LightsAlwaysOn) -
     Ok(())
 }
 
+/// Lowest / highest charge limit the Blade firmware is expected to accept (percent).
+pub const BATTERY_LIMIT_MIN: u8 = 50;
+pub const BATTERY_LIMIT_MAX: u8 = 80;
+
+// Battery Health Optimizer register layout (0x0792 get / 0x0712 set), inferred from the two
+// values the original code used: 0x50 (disabled, 80%) and 0xd0 (enabled, 80%).
+//   bit 7      = optimizer enabled
+//   bits 0..=6 = charge limit in percent
+// Verified on a Blade 16 (2023): 50..=80 in 5% steps hold. The set call checks the echoed reply.
+// Firmware only resumes charging once the battery is ~10 points below the limit (hysteresis).
+
+/// Returns (enabled, limit_percent).
+pub fn get_battery_limit(device: &Device) -> Result<(bool, u8)> {
+    let raw = device.send(Packet::new(0x0792, &[0]))?.get_args()[0];
+    Ok((raw & 0x80 != 0, raw & 0x7f))
+}
+
+pub fn set_battery_limit(device: &Device, enabled: bool, percent: u8) -> Result<()> {
+    let pct = percent.clamp(BATTERY_LIMIT_MIN, BATTERY_LIMIT_MAX);
+    let flag: u8 = if enabled { 0x80 } else { 0x00 };
+    let args = &[pct | flag];
+    ensure!(device.send(Packet::new(0x0712, args))?.get_args().starts_with(args));
+    Ok(())
+}
+
 pub fn get_battery_care(device: &Device) -> Result<BatteryCare> {
-    device.send(Packet::new(0x0792, &[0]))?.get_args()[0].try_into()
+    let (enabled, _) = get_battery_limit(device)?;
+    Ok(if enabled { BatteryCare::Enable } else { BatteryCare::Disable })
 }
 
 pub fn set_battery_care(device: &Device, mode: BatteryCare) -> Result<()> {
-    let args = &[mode as u8];
-    ensure!(device.send(Packet::new(0x0712, args))?.get_args().starts_with(args));
-    Ok(())
+    // Preserve the user's chosen limit; only flip the enable bit.
+    let pct = get_battery_limit(device).map(|(_, p)| p).unwrap_or(BATTERY_LIMIT_MAX);
+    set_battery_limit(device, matches!(mode, BatteryCare::Enable), pct)
 }

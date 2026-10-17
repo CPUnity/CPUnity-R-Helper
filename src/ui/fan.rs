@@ -3,7 +3,7 @@ use eframe::egui::{self, Align, Color32, Layout, RichText};
 const MIN_RPM_FOR_COLOR: f32 = 1900.0;
 const MAX_RPM_FOR_COLOR: f32 = 5000.0;
 const MIN_MANUAL_RPM: u16 = 2000;
-const MAX_MANUAL_RPM: u16 = 5500;
+pub const MAX_MANUAL_RPM: u16 = 5500;
 const RPM_STEP: f64 = 100.0;
 const DARK_GREEN_MAX: u8 = 120;
 const ORANGE_MAX: u8 = 100;
@@ -13,6 +13,8 @@ pub enum FanAction {
     None,
     SetAutoMode,
     SetManualMode(u16),
+    /// Manual mode with the slider pushed to its maximum.
+    SetMaxManual,
     SetManualRpm(u16),
     SliderDragging(u16),
 }
@@ -30,7 +32,7 @@ pub fn render_fan_section(
     let mut action = FanAction::None;
     let mut toggle_max = max_fan_speed_enabled;
 
-    ui.group(|ui| {
+    crate::theme::card(ui, |ui| {
         render_fan_header(ui, fan_actual_rpm, fan_set_rpm, show_status_messages);
         ui.separator();
         // Fan Mode Selection row with Max on the right
@@ -56,6 +58,14 @@ pub fn render_fan_section(
                     });
                     // Right column: Max (toggle) - only when Custom mode AND in-app Debug are enabled
                     cols[1].with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        // Rightmost: one click = Manual mode + slider at maximum.
+                        if ui
+                            .button("Max Fan")
+                            .on_hover_text("Switch to Manual and set the fan slider to maximum")
+                            .clicked()
+                        {
+                            action = FanAction::SetMaxManual;
+                        }
                         if custom_mode_active && show_status_messages {
                             let max_selected = toggle_max;
                             let response = ui.selectable_label(max_selected, "Max");
@@ -88,7 +98,7 @@ fn render_fan_header(
     show_status_messages: bool,
 ) {
     ui.horizontal(|ui| {
-        ui.add(egui::Label::new("🌀 Fan Control").selectable(false));
+        ui.add(egui::Label::new(crate::theme::section_title("🌀 Fan Control")).selectable(false));
 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if let Some(actual_rpm) = fan_actual_rpm {

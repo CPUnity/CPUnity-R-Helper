@@ -1,15 +1,11 @@
+use crate::theme;
 use eframe::egui::{self, Align, Color32, Layout, RichText};
 use librazer::types::{CpuBoost, GpuBoost, PerfMode};
 
 // Color constants for better maintainability
-const AC_SELECTED_COLOR: Color32 = Color32::from_rgb(0, 120, 60);
-const AC_UNSELECTED_COLOR: Color32 = Color32::from_rgb(60, 80, 40);
 const BATTERY_SELECTED_COLOR: Color32 = Color32::from_rgb(140, 70, 0);
 const BATTERY_UNSELECTED_COLOR: Color32 = Color32::from_rgb(80, 60, 40);
 const ORANGE_COLOR: Color32 = Color32::from_rgb(255, 165, 0);
-// Muted green for disabled-but-active Custom state
-const CUSTOM_ACTIVE_FILL: Color32 = Color32::from_rgb(40, 80, 55);
-const CUSTOM_ACTIVE_STROKE: Color32 = Color32::from_rgb(70, 130, 90);
 
 // Actions that can be triggered from the performance UI
 #[derive(Debug, Clone, PartialEq)]
@@ -41,7 +37,7 @@ pub fn render_performance_section(
 ) -> PerformanceAction {
     let mut action = PerformanceAction::None;
 
-    ui.group(|ui| {
+    crate::theme::card(ui, |ui| {
         render_performance_header(ui, ac_power, debug_mode);
         ui.separator();
 
@@ -100,19 +96,17 @@ fn render_custom_boosts(
     base_gpu: &[GpuBoost],
 ) -> Option<PerformanceAction> {
     let mut out = None;
-    // CPU row: left side label + standard boosts, right-aligned Undervolt (eye toggle only)
+    // CPU row: left side label + standard boosts, right-aligned Overclock
     let row_height = ui.spacing().interact_size.y;
     let full_width = ui.available_width();
     ui.allocate_ui_with_layout(
         egui::Vec2::new(full_width, row_height),
         Layout::right_to_left(Align::Center),
         |ui| {
-            // Right-most: Undervolt shown only when hidden boosts are revealed via eye toggle
-            let showing_hidden =
-                ui.ctx().data(|d| d.get_temp::<bool>("perf_hidden_show".into()).unwrap_or(false));
-            if showing_hidden {
-                let boost = CpuBoost::Undervolt;
-                let label = "Undervolt";
+            // Right-most: Overclock preset, always visible while Custom controls are shown
+            {
+                let boost = CpuBoost::Overclock;
+                let label = "Overclock";
                 let selected = boost == current_cpu;
                 let color = get_button_color(ac_power, selected);
                 let style_text = if selected {
@@ -129,11 +123,11 @@ fn render_custom_boosts(
                     out = Some(PerformanceAction::SetCpuBoost(boost));
                 }
                 if !custom_active {
-                    response
-                        .on_hover_text("Hidden preset (Undervolt). Activate Custom mode to apply.");
+                    response.on_hover_text("CPU Overclock preset. Activate Custom mode to apply.");
                 } else {
-                    response
-                        .on_hover_text("Hidden preset (Undervolt). Behavior not fully confirmed.");
+                    response.on_hover_text(
+                        "CPU Overclock (same as Synapse's CPU Overclock option, Custom mode).",
+                    );
                 }
             }
             // Left group: label + standard boosts
@@ -212,7 +206,9 @@ fn render_custom_boosts(
 // Renders the performance section header with power status
 fn render_performance_header(ui: &mut egui::Ui, ac_power: bool, show_probe_button: bool) {
     ui.horizontal(|ui| {
-        ui.add(egui::Label::new("🚀 Performance Mode").selectable(false));
+        ui.add(
+            egui::Label::new(crate::theme::section_title("🚀 Performance Mode")).selectable(false),
+        );
 
         // Power status indicator
         let (power_icon, power_color) =
@@ -225,7 +221,7 @@ fn render_performance_header(ui: &mut egui::Ui, ac_power: bool, show_probe_butto
                     .data(|d| d.get_temp::<bool>("perf_hidden_show".into()).unwrap_or(false));
                 let mut eye_btn = egui::Button::new(RichText::new("👁"));
                 if active {
-                    let highlight = AC_SELECTED_COLOR; // reuse green
+                    let highlight = theme::accent(); // reuse green
                     eye_btn = eye_btn.fill(highlight).stroke(egui::Stroke::new(1.0, highlight));
                 } else {
                     eye_btn = eye_btn.stroke(egui::Stroke::new(1.0, Color32::from_gray(90)));
@@ -343,9 +339,9 @@ fn render_performance_modes(
                     let custom_str = format!("{:?}", PerfMode::Custom);
                     let selected = current_performance_mode == custom_str;
                     let fill_color =
-                        if selected { CUSTOM_ACTIVE_FILL } else { Color32::TRANSPARENT };
+                        if selected { theme::accent_muted_fill() } else { Color32::TRANSPARENT };
                     let stroke_color =
-                        if selected { CUSTOM_ACTIVE_STROKE } else { Color32::from_gray(80) };
+                        if selected { theme::accent_stroke() } else { Color32::from_gray(80) };
                     let btn = egui::Button::new(RichText::new(&custom_str).color(Color32::WHITE))
                         .fill(fill_color)
                         .stroke(egui::Stroke::new(1.0, stroke_color));
@@ -369,8 +365,8 @@ fn render_performance_modes(
 // Gets the appropriate button color based on power state and selection
 fn get_button_color(ac_power: bool, selected: bool) -> Color32 {
     match (ac_power, selected) {
-        (true, true) => AC_SELECTED_COLOR,
-        (true, false) => AC_UNSELECTED_COLOR,
+        (true, true) => theme::accent(),
+        (true, false) => theme::accent_dim(),
         (false, true) => BATTERY_SELECTED_COLOR,
         (false, false) => BATTERY_UNSELECTED_COLOR,
     }

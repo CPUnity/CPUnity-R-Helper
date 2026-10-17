@@ -58,8 +58,8 @@ pub fn render_lighting_section(
 ) -> LightingAction {
     let mut action = LightingAction::default();
 
-    ui.group(|ui| {
-        ui.add(egui::Label::new("💡 Lighting").selectable(false));
+    crate::theme::card(ui, |ui| {
+        ui.add(egui::Label::new(crate::theme::section_title("💡 Lighting")).selectable(false));
         ui.separator();
 
         // Logo Mode Selection

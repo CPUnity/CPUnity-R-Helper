@@ -1,0 +1,27 @@
+name: release
+# Push a tag such as v0.5.0 to build the exe and attach a zip to a GitHub Release.
+on:
+  push:
+    tags:
+      - "v*"
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "CPUnity-R-Helper-${{ github.ref_name }}-windows-x64"
+          New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
+          Copy-Item target/release/cpunity-rhelper.exe "dist/$name/"
+          Copy-Item README.md, CHANGELOG.md, LICENSE, NOTICE, THIRD_PARTY_LICENSES.md "dist/$name/"
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
