@@ -1,4 +1,5 @@
 use eframe::egui;
+use librazer::command::KeyboardEffect;
 
 // Discrete brightness levels that the keyboard actually supports
 // Based on testing with Fn+F10/F11 brightness keys
@@ -32,11 +33,25 @@ pub struct LightingAction {
     pub lights_always_on: bool,
     /// Whether the brightness slider is currently being interacted with
     pub slider_active: Option<bool>,
+    /// "Toggle App Lighting Control" for the keyboard was switched on / off
+    pub kbd_lighting_toggled: Option<bool>,
+    /// A keyboard effect button was clicked
+    pub kbd_effect: Option<KeyboardEffect>,
+    /// "Apply" next to the keyboard color was clicked
+    pub kbd_apply_color: bool,
 }
 
 impl Default for LightingAction {
     fn default() -> Self {
-        Self { logo_mode: None, brightness: None, lights_always_on: false, slider_active: None }
+        Self {
+            logo_mode: None,
+            brightness: None,
+            lights_always_on: false,
+            slider_active: None,
+            kbd_lighting_toggled: None,
+            kbd_effect: None,
+            kbd_apply_color: false,
+        }
     }
 }
 
@@ -55,11 +70,16 @@ pub fn render_lighting_section(
     logo_mode: &str,
     temp_brightness_step: &mut usize,
     lights_always_on: &mut bool,
+    kbd_lighting: &mut bool,
+    kbd_effect: &str,
+    kbd_color: &mut [u8; 3],
 ) -> LightingAction {
     let mut action = LightingAction::default();
 
     crate::theme::card(ui, |ui| {
-        ui.add(egui::Label::new(crate::theme::section_title("💡 Lighting")).selectable(false));
+        ui.add(
+            egui::Label::new(crate::theme::section_title("💡 Keyboard & Logo")).selectable(false),
+        );
         ui.separator();
 
         // Logo Mode Selection
@@ -70,6 +90,9 @@ pub fn render_lighting_section(
 
         // Lights Always On Toggle
         render_always_on_toggle(ui, lights_always_on, &mut action);
+
+        // Keyboard effects (opt-in)
+        render_keyboard_effects(ui, kbd_lighting, kbd_effect, kbd_color, &mut action);
     });
 
     action
@@ -144,6 +167,60 @@ fn render_always_on_toggle(
             action.lights_always_on = true;
         }
     });
+}
+
+/// Renders the opt-in keyboard effect controls.
+///
+/// While "Toggle App Lighting Control" is off, R-Helper never sends a keyboard color or effect.
+fn render_keyboard_effects(
+    ui: &mut egui::Ui,
+    kbd_lighting: &mut bool,
+    kbd_effect: &str,
+    kbd_color: &mut [u8; 3],
+    action: &mut LightingAction,
+) {
+    ui.add_space(4.0);
+    ui.separator();
+
+    let response = ui.checkbox(kbd_lighting, "Toggle App Lighting Control").on_hover_text(
+        "Off: R-Helper leaves the keyboard's color and effect alone (Razer Chroma / Synapse keep control).\n\
+         On: the keyboard effect only changes when you click here (or restore at startup if you chose that).",
+    );
+    if response.changed() {
+        action.kbd_lighting_toggled = Some(*kbd_lighting);
+    }
+    if !*kbd_lighting {
+        return;
+    }
+
+    ui.horizontal_wrapped(|ui| {
+        ui.add(egui::Label::new("Effect:").selectable(false));
+        for effect in KeyboardEffect::ALL {
+            let selected = kbd_effect == effect.name();
+            if ui.selectable_label(selected, effect.name()).clicked() && !selected {
+                action.kbd_effect = Some(effect);
+            }
+        }
+    });
+
+    let uses_color = KeyboardEffect::from_name(kbd_effect).map_or(false, |e| e.uses_color());
+    if uses_color {
+        ui.horizontal(|ui| {
+            ui.add(egui::Label::new("Color:").selectable(false));
+            ui.color_edit_button_srgb(kbd_color);
+            if ui.button("Apply").on_hover_text("Send the picked color to the keyboard").clicked() {
+                action.kbd_apply_color = true;
+            }
+        });
+    }
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new("Brightness: use the Keyboard Brightness slider above.")
+                .small()
+                .weak(),
+        )
+        .selectable(false),
+    );
 }
 
 /// Converts raw brightness (0-255) to the closest supported step index

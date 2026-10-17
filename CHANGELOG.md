@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.5.1 - 2026-10-17
+
+### Added
+- **Lighting tab**: all lighting controls moved off the main page onto their own tab (Main /
+  Lighting). The Cooling Pad fan card stays on Main.
+- **Lighting presets**: 10 named slots for the keyboard, 10 for the cooling pad and 10 for both
+  together (a "both" preset can hold either part or both). Save / Apply / Clear per slot, stored in
+  `config.txt`.
+- **Restore lighting at startup (opt-in, off by default)**: puts the last applied keyboard effect and
+  pad lighting back at launch and when the pad is plugged in again. Requires "Toggle App Lighting
+  Control" for that device. Without it nothing is applied at launch, as before.
+- **Keyboard effects (opt-in)** in the Lighting card: Static, Breathing, Spectrum, Wave (left /
+  right) and Off with a color picker, behind a **Toggle App Lighting Control** checkbox that is off
+  by default. Effects are only sent when you click one (or restored at startup if you opt in).
+  Brightness keeps using the existing Keyboard Brightness slider. Uses the Razer extended matrix
+  effect command (0x0F02) aimed at the keyboard backlight LED with transaction id 0x1F; Options >
+  Advanced > Keyboard effect tuning can switch to the older standard command (0x030A), a random
+  transaction id, or an "Off" before Static / Breathing. Static is painted as a custom frame
+  (every key set to the color), the way razer-laptop-control does it, because the firmware's own
+  Static effect ignores the color on some laptops (switchable in the same place). Not yet verified on every Blade model.
+- **Cooling Pad** card for the Razer Laptop Cooling Pad (USB 1532:0F43), shown only while a pad is
+  connected. Fan: Manual / Off, a speed dropdown in 5% steps, three saveable speed presets and an
+  exact RPM slider. Lighting (Static / Breathing / Off, color, brightness) is opt-in via "Toggle App
+  Lighting Control", off by default, and is not applied at launch unless you opt in to restoring it, so Razer
+  Chroma / Synapse keep control of the pad's lights unless you ask otherwise. Runs on its own
+  background thread, so the window never waits on the pad, and re-applies the last fan setting when
+  the pad is plugged back in or after sleep. Based on the cooling pad work in
+  [Robak08/r-helper](https://github.com/Robak08/r-helper) (MIT). Fan "Auto" (temperature-driven) is
+  not included yet.
+
 ## 0.5.0 - first CPUnity:R-Helper release
 
 Fork of [R-Helper](https://github.com/Fatalution/r-helper) by Fatalution (MIT), which is built on

@@ -6,6 +6,7 @@ mod config;
 mod device;
 mod dlog;
 mod messaging;
+mod pad;
 mod power;
 mod synapse;
 mod system;
@@ -70,6 +71,12 @@ impl Default for DeviceStatus {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Tab {
+    Main,
+    Lighting,
+}
+
 struct RazerGuiApp {
     status: DeviceStatus,
     device: Option<Device>,
@@ -125,6 +132,18 @@ struct RazerGuiApp {
     battery_limit: u8,
     applied_accent: Option<[u8; 3]>,
     synapse: synapse::Handle,
+    /// Optional Razer Laptop Cooling Pad (background worker, see pad.rs).
+    pad: pad::Handle,
+    /// Lighting mode last chosen in the Cooling Pad card this session ("" = not touched yet).
+    /// Not saved: the pad lights are only set at launch via the opt-in "Restore lighting".
+    pad_light_mode: String,
+    /// Keyboard effect last chosen this session ("" = not touched yet). Not saved: the keyboard
+    /// is only touched at launch via the opt-in "Restore lighting".
+    kbd_effect: String,
+    /// Which page is shown (not saved).
+    tab: Tab,
+    /// State of the Lighting Presets card (not saved).
+    preset_ui: ui::presets::PresetsUiState,
     applied_font: Option<String>,
     /// Last window height we requested, so we only resize when the content height really changes.
     last_fit_height: f32,
@@ -245,6 +264,21 @@ impl RazerGuiApp {
             battery_limit: cfg.battery_limit,
             applied_accent: None,
             synapse: synapse::Handle::spawn(),
+            pad: pad::Handle::spawn(
+                pad::Desired::from_config(&cfg),
+                cfg.pad_lighting,
+                cfg.light_resume,
+            ),
+            // With "Restore lighting at startup" the pad worker puts the last lighting back, so
+            // the card should show it. Otherwise nothing was applied and no mode is selected.
+            pad_light_mode: if cfg.light_resume && cfg.pad_lighting {
+                cfg.pad_last_mode.clone()
+            } else {
+                String::new()
+            },
+            kbd_effect: String::new(),
+            tab: Tab::Main,
+            preset_ui: ui::presets::PresetsUiState::default(),
             applied_font: None,
             last_fit_height: 0.0,
             startup_enabled: config::startup_enabled(),
@@ -1135,6 +1169,35 @@ impl RazerGuiApp {
         }
     }
 
+    fn set_keyboard_effect(&mut self, effect: librazer::command::KeyboardEffect) -> bool {
+        let rgb = self.cfg.kbd_color;
+        let opts = librazer::command::KeyboardEffectOptions {
+            legacy: self.cfg.kbd_legacy,
+            random_id: self.cfg.kbd_random_id,
+            clear_first: self.cfg.kbd_clear_first,
+            static_frame: self.cfg.kbd_static_frame,
+        };
+        dlog::log(&format!("keyboard effect: {} rgb={:?} {:?}", effect.name(), rgb, opts));
+        match execute_device_command_simple(
+            self.device.as_ref(),
+            |device| command::set_keyboard_effect(device, effect, rgb, opts),
+            &format!("Keyboard effect set to {}", effect.name()),
+            "Failed to set keyboard effect",
+        ) {
+            Ok(message) => {
+                self.kbd_effect = effect.name().to_string();
+                self.cfg.kbd_last_effect = effect.key().to_string();
+                self.set_optional_status_message(message);
+                config::save(&self.cfg);
+                true
+            }
+            Err(message) => {
+                self.set_error_message(message);
+                false
+            }
+        }
+    }
+
     fn set_brightness(&mut self, brightness: u8) {
         match execute_device_command_simple(
             self.device.as_ref(),
@@ -1185,12 +1248,36 @@ impl RazerGuiApp {
     fn render_lighting_section(&mut self, ui: &mut egui::Ui) {
         use ui::lighting::render_lighting_section;
 
+        let mut kbd_lighting = self.cfg.kbd_lighting;
+        let mut kbd_color = self.cfg.kbd_color;
         let action = render_lighting_section(
             ui,
             &self.status.logo_mode,
             &mut self.temp_brightness_step,
             &mut self.status.lights_always_on,
+            &mut kbd_lighting,
+            &self.kbd_effect,
+            &mut kbd_color,
         );
+        self.cfg.kbd_color = kbd_color;
+        self.cfg.kbd_lighting = kbd_lighting;
+
+        if let Some(on) = action.kbd_lighting_toggled {
+            if !on {
+                self.kbd_effect.clear();
+            }
+            config::save(&self.cfg);
+        }
+        if let Some(effect) = action.kbd_effect {
+            self.set_keyboard_effect(effect);
+        }
+        if action.kbd_apply_color {
+            if let Some(effect) = librazer::command::KeyboardEffect::from_name(&self.kbd_effect) {
+                if effect.uses_color() {
+                    self.set_keyboard_effect(effect);
+                }
+            }
+        }
 
         if let Some(active) = action.slider_active {
             self.brightness_slider_active = active;
@@ -1226,6 +1313,314 @@ impl RazerGuiApp {
             }
         } else {
             self.set_no_device_message();
+        }
+    }
+
+    fn pad_light_target(&self) -> Option<pad::LightTarget> {
+        let mode = librazer::cooling_pad::PadLightingMode::from_name(&self.pad_light_mode)?;
+        Some(pad::LightTarget {
+            mode,
+            rgb: self.cfg.pad_color,
+            brightness: pad::pct_to_raw(self.cfg.pad_brightness),
+        })
+    }
+
+    /// Cooling Pad fan card, shown only while a Razer Laptop Cooling Pad is connected.
+    /// Returns true when the card was drawn.
+    fn render_cooling_pad_section(&mut self, ui: &mut egui::Ui) -> bool {
+        let status = self.pad.snapshot();
+        if !status.present {
+            return false;
+        }
+
+        let mut rpm = self.cfg.pad_rpm;
+        let mut presets = self.cfg.pad_presets;
+        let action = ui::cooling_pad::render_cooling_pad_section(
+            ui,
+            &self.cfg.pad_fan,
+            &mut rpm,
+            &mut presets,
+        );
+        self.cfg.pad_rpm = rpm;
+        self.cfg.pad_presets = presets;
+
+        let mut save = false;
+        if action.fan_manual {
+            self.cfg.pad_fan = "manual".to_string();
+            self.pad.send(pad::PadCmd::Fan(pad::FanTarget::Rpm(self.cfg.pad_rpm)));
+            save = true;
+        }
+        if action.fan_off {
+            self.cfg.pad_fan = "off".to_string();
+            self.pad.send(pad::PadCmd::Fan(pad::FanTarget::Off));
+            save = true;
+        }
+        if let Some(r) = action.fan_rpm {
+            if self.cfg.pad_fan == "manual" {
+                self.pad.send(pad::PadCmd::Fan(pad::FanTarget::Rpm(r)));
+            }
+            save = true;
+        }
+        if action.presets_saved {
+            save = true;
+        }
+        if save {
+            config::save(&self.cfg);
+        }
+        true
+    }
+
+    /// Cooling pad lighting card (Lighting tab). Returns true when the card was drawn.
+    fn render_pad_lighting_section(&mut self, ui: &mut egui::Ui) -> bool {
+        let status = self.pad.snapshot();
+        if !status.present {
+            return false;
+        }
+
+        let mut color = self.cfg.pad_color;
+        let mut pct = self.cfg.pad_brightness;
+        let mut lighting = self.cfg.pad_lighting;
+        let action = ui::cooling_pad::render_pad_lighting_section(
+            ui,
+            &mut lighting,
+            &self.pad_light_mode,
+            &mut color,
+            &mut pct,
+            status.lighting_available,
+        );
+        self.cfg.pad_color = color;
+        self.cfg.pad_brightness = pct;
+        self.cfg.pad_lighting = lighting;
+
+        let mut save = false;
+        if let Some(on) = action.lighting_toggled {
+            if !on {
+                self.pad_light_mode.clear();
+            }
+            self.pad.send(pad::PadCmd::LightingEnabled(on));
+            save = true;
+        }
+        if let Some(mode) = action.light_mode {
+            self.pad_light_mode = mode.name().to_string();
+            self.cfg.pad_last_mode = mode.name().to_string();
+            if let Some(target) = self.pad_light_target() {
+                self.pad.send(pad::PadCmd::Light(target));
+            }
+            save = true;
+        }
+        if action.apply_color {
+            if let Some(target) = self.pad_light_target() {
+                if target.mode != librazer::cooling_pad::PadLightingMode::Off {
+                    self.pad.send(pad::PadCmd::LightColor(target));
+                }
+            }
+            save = true;
+        }
+        if let Some(p) = action.brightness {
+            self.pad.send(pad::PadCmd::Brightness(pad::pct_to_raw(p)));
+            save = true;
+        }
+        if save {
+            config::save(&self.cfg);
+        }
+        true
+    }
+
+    fn preset_bank_mut(
+        &mut self,
+        bank: ui::presets::Bank,
+    ) -> &mut Vec<Option<config::LightPreset>> {
+        match bank {
+            ui::presets::Bank::Keyboard => &mut self.cfg.kbd_presets,
+            ui::presets::Bank::Pad => &mut self.cfg.pad_light_presets,
+            ui::presets::Bank::Both => &mut self.cfg.combo_presets,
+        }
+    }
+
+    /// The keyboard lighting as it is right now, if the app has applied something this session.
+    fn current_kbd_part(&self) -> Option<config::KbdPart> {
+        let effect = librazer::command::KeyboardEffect::from_name(&self.kbd_effect)?;
+        Some(config::KbdPart {
+            effect: effect.key().to_string(),
+            color: self.cfg.kbd_color,
+            brightness: self.status.keyboard_brightness,
+        })
+    }
+
+    /// The pad lighting as it is right now, if the app has applied something this session.
+    fn current_pad_part(&self) -> Option<config::PadPart> {
+        let mode = librazer::cooling_pad::PadLightingMode::from_name(&self.pad_light_mode)?;
+        Some(config::PadPart {
+            mode: mode.name().to_string(),
+            color: self.cfg.pad_color,
+            brightness: self.cfg.pad_brightness,
+        })
+    }
+
+    fn save_preset(&mut self, bank: ui::presets::Bank, slot: usize) {
+        use ui::presets::Bank;
+        let (want_kbd, want_pad) = match bank {
+            Bank::Keyboard => (true, false),
+            Bank::Pad => (false, true),
+            Bank::Both => (self.preset_ui.include_kbd, self.preset_ui.include_pad),
+        };
+        if !want_kbd && !want_pad {
+            self.set_error_message("Tick Keyboard and/or Cooling pad to save".to_string());
+            return;
+        }
+        let kbd = if want_kbd {
+            match self.current_kbd_part() {
+                Some(part) => Some(part),
+                None => {
+                    self.set_error_message(
+                        "Keyboard: turn on Toggle App Lighting Control and pick an effect first"
+                            .to_string(),
+                    );
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+        let pad = if want_pad {
+            match self.current_pad_part() {
+                Some(part) => Some(part),
+                None => {
+                    self.set_error_message(
+                        "Cooling pad: turn on Toggle App Lighting Control and pick a light mode first"
+                            .to_string(),
+                    );
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+
+        let typed = config::clean_preset_name(&self.preset_ui.name);
+        let old_name =
+            self.preset_bank_mut(bank).get(slot).and_then(|p| p.as_ref()).map(|p| p.name.clone());
+        let name = if !typed.is_empty() {
+            typed
+        } else {
+            old_name.unwrap_or_else(|| format!("Preset {}", slot + 1))
+        };
+
+        if let Some(entry) = self.preset_bank_mut(bank).get_mut(slot) {
+            *entry = Some(config::LightPreset { name: name.clone(), kbd, pad });
+        }
+        self.preset_ui.name.clear();
+        config::save(&self.cfg);
+        self.set_status_message(format!("Saved \"{}\" in slot {}", name, slot + 1));
+    }
+
+    /// Applies the keyboard part of a preset. Needs the keyboard's lighting toggle to be on.
+    fn apply_kbd_part(&mut self, part: &config::KbdPart) -> bool {
+        if !self.cfg.kbd_lighting {
+            self.set_error_message(
+                "Keyboard: turn on Toggle App Lighting Control to apply this".to_string(),
+            );
+            return false;
+        }
+        let Some(effect) = librazer::command::KeyboardEffect::from_key(&part.effect) else {
+            self.set_error_message("Keyboard: unknown effect in this preset".to_string());
+            return false;
+        };
+        self.cfg.kbd_color = part.color;
+        if !self.set_keyboard_effect(effect) {
+            return false; // the effect command failed; its error is already shown
+        }
+        if part.brightness != self.status.keyboard_brightness {
+            self.set_brightness(part.brightness);
+        }
+        true
+    }
+
+    /// Applies the pad part of a preset. Needs the pad's lighting toggle on and a connected pad.
+    fn apply_pad_part(&mut self, part: &config::PadPart) -> bool {
+        use librazer::cooling_pad::PadLightingMode;
+        let status = self.pad.snapshot();
+        if !status.present {
+            self.set_error_message("Cooling pad: not connected".to_string());
+            return false;
+        }
+        if !self.cfg.pad_lighting || !status.lighting_available {
+            self.set_error_message(
+                "Cooling pad: turn on Toggle App Lighting Control to apply this".to_string(),
+            );
+            return false;
+        }
+        let Some(mode) = PadLightingMode::from_name(&part.mode) else {
+            self.set_error_message("Cooling pad: unknown mode in this preset".to_string());
+            return false;
+        };
+        self.cfg.pad_color = part.color;
+        self.cfg.pad_brightness = part.brightness;
+        self.pad_light_mode = mode.name().to_string();
+        self.cfg.pad_last_mode = mode.name().to_string();
+        if let Some(target) = self.pad_light_target() {
+            self.pad.send(pad::PadCmd::Light(target));
+        }
+        true
+    }
+
+    fn apply_preset(&mut self, bank: ui::presets::Bank, slot: usize) {
+        let Some(preset) = self.preset_bank_mut(bank).get(slot).cloned().flatten() else {
+            return;
+        };
+        let mut ok = true;
+        if let Some(part) = &preset.kbd {
+            ok &= self.apply_kbd_part(part);
+        }
+        if let Some(part) = &preset.pad {
+            ok &= self.apply_pad_part(part);
+        }
+        config::save(&self.cfg);
+        if ok {
+            self.set_status_message(format!("Applied \"{}\"", preset.name));
+        }
+    }
+
+    /// Lighting Presets card (Lighting tab).
+    fn render_presets_section(&mut self, ui: &mut egui::Ui) {
+        let pad_present = self.pad.snapshot().present;
+        let mut resume = self.cfg.light_resume;
+        let action = ui::presets::render_presets_card(
+            ui,
+            &mut self.preset_ui,
+            &self.cfg,
+            &mut resume,
+            pad_present,
+        );
+
+        if let Some(on) = action.resume_toggled {
+            self.cfg.light_resume = on;
+            self.pad.send(pad::PadCmd::ResumeLighting(on));
+            config::save(&self.cfg);
+        }
+        if let Some((bank, slot)) = action.clear {
+            if let Some(entry) = self.preset_bank_mut(bank).get_mut(slot) {
+                *entry = None;
+            }
+            config::save(&self.cfg);
+        }
+        if let Some((bank, slot)) = action.save {
+            self.save_preset(bank, slot);
+        }
+        if let Some((bank, slot)) = action.apply {
+            self.apply_preset(bank, slot);
+        }
+    }
+
+    /// Once per launch: with "Restore lighting at startup" on (and the keyboard's lighting toggle
+    /// on), put the last keyboard effect back. The pad does the same on its own thread.
+    fn resume_keyboard_lighting(&mut self) {
+        if !(self.cfg.light_resume && self.cfg.kbd_lighting) {
+            return;
+        }
+        if let Some(effect) = librazer::command::KeyboardEffect::from_key(&self.cfg.kbd_last_effect)
+        {
+            let _ = self.set_keyboard_effect(effect);
         }
     }
 
@@ -1300,6 +1695,15 @@ impl eframe::App for RazerGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint_after(std::time::Duration::from_millis(500));
 
+        // Cooling pad worker messages (connected / disconnected / errors).
+        for (is_error, message) in self.pad.drain_events() {
+            if is_error {
+                self.set_error_message(message);
+            } else {
+                self.set_optional_status_message(message);
+            }
+        }
+
         // Apply the accent color to egui's selection/highlight color when it changes.
         let accent_rgb = [theme::accent().r(), theme::accent().g(), theme::accent().b()];
         if self.applied_accent != Some(accent_rgb) {
@@ -1359,6 +1763,7 @@ impl eframe::App for RazerGuiApp {
             if self.device.is_some() {
                 self.launch_profile_done = true;
                 self.apply_launch_profile();
+                self.resume_keyboard_lighting();
             } else if self.device_detection_done && !self.detecting_device {
                 self.launch_profile_done = true; // no device: nothing to apply
             }
@@ -1552,19 +1957,47 @@ impl eframe::App for RazerGuiApp {
                         );
                         ui.add_space(8.0);
 
-                        self.render_performance_section(ui);
-                        ui.add_space(8.0);
+                        ui.horizontal(|ui| {
+                            for (tab, label) in [
+                                (Tab::Main, "\u{1f3e0} Main"),
+                                (Tab::Lighting, "\u{1f4a1} Lighting"),
+                            ] {
+                                let text = egui::RichText::new(label).size(15.0);
+                                if ui.selectable_label(self.tab == tab, text).clicked() {
+                                    self.tab = tab;
+                                }
+                            }
+                        });
+                        ui.add_space(6.0);
 
-                        self.render_fan_section(ui);
-                        ui.add_space(8.0);
+                        match self.tab {
+                            Tab::Main => {
+                                self.render_performance_section(ui);
+                                ui.add_space(8.0);
 
-                        self.render_lighting_section(ui);
-                        ui.add_space(8.0);
+                                self.render_fan_section(ui);
+                                ui.add_space(8.0);
 
-                        self.render_battery_section(ui);
-                        ui.add_space(8.0);
+                                if self.render_cooling_pad_section(ui) {
+                                    ui.add_space(8.0);
+                                }
 
-                        self.render_synapse_section(ui);
+                                self.render_battery_section(ui);
+                                ui.add_space(8.0);
+
+                                self.render_synapse_section(ui);
+                            }
+                            Tab::Lighting => {
+                                self.render_lighting_section(ui);
+                                ui.add_space(8.0);
+
+                                if self.render_pad_lighting_section(ui) {
+                                    ui.add_space(8.0);
+                                }
+
+                                self.render_presets_section(ui);
+                            }
+                        }
                     });
                 content_height = scroll_out.content_size.y;
             });

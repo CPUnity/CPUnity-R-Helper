@@ -124,6 +124,48 @@ pub fn render_options(
             .selectable(false),
         );
         ui.checkbox(debug_mode, "🐛 Debug mode");
+        ui.add_space(4.0);
+        ui.add(
+            egui::Label::new(egui::RichText::new("Keyboard effect tuning").strong())
+                .selectable(false),
+        );
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(
+                    "Only if an effect ignores the color or looks wrong. Click the effect again \
+                     after changing one of these.",
+                )
+                .small()
+                .weak(),
+            )
+            .selectable(false),
+        );
+        for (flag, text, tip) in [
+            (
+                &mut cfg.kbd_static_frame,
+                "Paint Static as a custom frame",
+                "On (default): Static fills every key with the color. Off: use the firmware's Static effect, which ignores the color on some laptops.",
+            ),
+            (
+                &mut cfg.kbd_legacy,
+                "Use the older command set (0x030A)",
+                "Send effects with the older standard matrix effect command.",
+            ),
+            (
+                &mut cfg.kbd_random_id,
+                "Use a random transaction id",
+                "Off (default): fixed id 0x1F, which newer Razer firmware expects for lighting.",
+            ),
+            (
+                &mut cfg.kbd_clear_first,
+                "Clear the keyboard before Static / Breathing",
+                "Sends an Off effect first, for firmware that ignores a new color while the same effect is showing.",
+            ),
+        ] {
+            if ui.checkbox(flag, text).on_hover_text(tip).changed() {
+                res.changed = true;
+            }
+        }
     });
 
     res
@@ -339,11 +381,12 @@ fn render_shoutouts(ui: &mut egui::Ui) {
         };
         ui.add(dim("Huge thanks to everyone who made this possible:"));
         ui.add_space(4.0);
-        let rows: [(&str, &str); 10] = [
+        let rows: [(&str, &str); 11] = [
             ("Fatalution", "R-Helper, the app this is built on"),
             ("blauzim & tdakhran", "razer-ctl / librazer, the device layer"),
             ("Razer-Linux laptop-control contributors", "protocol groundwork"),
             ("NxRoot", "SynapseKiller, the idea behind Synapse Standby"),
+            ("Robak08", "Razer Laptop Cooling Pad support, the groundwork for the pad card"),
             ("egui, image-rs, hidapi-rs, windows-rs & more", "the Rust crates that carry the app"),
             ("The Rust project and community", "the language and tooling"),
             ("CPUnity", "the project and its vision"),

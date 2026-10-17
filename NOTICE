@@ -4,6 +4,7 @@ Original project: https://github.com/blauzim/razer-ctl
 Attribution:
 - Original authors: tdakhran, blauzim and contributors.
 - Changes in this fork (Fatalution): Windows GUI, resource embedding, UI tweaks, polling, and device state UX improvements.
+- Cooling pad support (fan and lighting protocol) is based on Robak08/r-helper (MIT), https://github.com/Robak08/r-helper
 - Changes in CPUnity:R-Helper: accent colors, options window, battery charge limit, CPU Overclock handling, built-in Synapse standby (original script), custom CPUnity app icon and logo (replacing the upstream icon).
 
 Licenses:

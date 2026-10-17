@@ -46,6 +46,13 @@ impl Packet {
         }
     }
 
+    /// Uses a fixed transaction id instead of the random one. The reply is still checked against
+    /// it. Lighting commands on newer Razer firmware are routed by this byte (0x1F).
+    pub fn with_id(mut self, id: u8) -> Self {
+        self.id = id;
+        self
+    }
+
     /// Read ("get") commands have bit 7 set in the command id (0x0d82, 0x0792, ...).
     pub fn is_query(&self) -> bool {
         self.command_id & 0x80 != 0

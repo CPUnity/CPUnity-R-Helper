@@ -12,8 +12,11 @@ Fork of [R-Helper](https://github.com/Fatalution/r-helper) by Fatalution (MIT), 
 [razer-ctl](https://github.com/blauzim/razer-ctl)'s `librazer` (MIT).
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="CPUnity:R-Helper window" width="360">
+  <img src="docs/screenshot.png" alt="CPUnity:R-Helper, Main tab" width="300">
+  &nbsp;&nbsp;
+  <img src="docs/screenshot-lighting.png" alt="CPUnity:R-Helper, Lighting tab" width="300">
 </p>
+<p align="center"><sub>Main tab (left) and Lighting tab (right)</sub></p>
 
 ## Features
 
@@ -31,6 +34,18 @@ Fork of [R-Helper](https://github.com/Fatalution/r-helper) by Fatalution (MIT), 
 
 **Lighting and battery**
 - Lid logo mode (Static, Breathing, Off), keyboard brightness, "backlight always on".
+- All lighting lives on its own **Lighting** tab (click it next to Main), away from the main page.
+- **Keyboard effects (opt-in).** Tick **Toggle App Lighting Control** to get Static, Breathing,
+  Spectrum, Wave (both directions) and Off, plus a color picker. It is off by default: R-Helper
+  only sends an effect when you click one, so Razer Chroma / Synapse stay in charge until you ask
+  otherwise.
+- **Lighting presets: 10 slots each for the keyboard, the cooling pad, and both together.** Set the
+  lights up, optionally type a name, press **Save** on a slot; **Apply** brings it back. A "both"
+  preset can hold the keyboard part, the pad part, or both. Presets live in `config.txt`, so they
+  work with Synapse parked.
+- **Restore lighting at startup (opt-in).** Off by default. When on, the last keyboard effect and
+  pad lighting you applied are put back when the app starts (and when the pad is plugged in again),
+  provided "Toggle App Lighting Control" is on for that device.
 - **Battery Health Optimizer** with a charge limit from 50% to 80% in 5% steps.
 
 **Razer Synapse Standby** (built in, so you no longer need a separate Synapse killer tool)
@@ -41,6 +56,18 @@ Fork of [R-Helper](https://github.com/Fatalution/r-helper) by Fatalution (MIT), 
 - **Auto-park at every boot / logon** installs a startup task (`SynapseStandby-Guard`) that parks
   Synapse on every boot.
 - **Resume Synapse** undoes everything Standby changed and removes the boot task.
+
+**Cooling pad** (new, shown only when a Razer Laptop Cooling Pad is plugged in)
+- Fan: Manual or Off. In Manual, pick a speed from a dropdown in 5% steps (15-100% of the pad's
+  maximum, shown with the RPM), or use one of **three saved presets** (click to apply, right-click to
+  save the current speed into that slot). An "Exact RPM" slider (500-3200 RPM) is tucked away for
+  fine tuning.
+- Your last fan setting is re-applied when the pad is plugged back in or the PC wakes from sleep.
+- **Lighting is opt-in.** "Toggle App Lighting Control" is off by default: while it is off,
+  R-Helper never opens or touches the pad's lights, so Razer Chroma / Synapse stay in charge. When
+  you switch it on (Lighting tab) you get Static / Breathing / Off, color and brightness, and the
+  lights only change when you click something there, or when you chose "Restore lighting at
+  startup".
 
 **Look**
 - Dark card layout, resizable window that fits its content, selectable UI font.
@@ -156,6 +183,12 @@ Synapse** and untick "launch at startup" so the boot task and registry entry are
   simplest), then lower it to the value you want; charging continues up to that value. Staying
   just under the limit is also normal: with an 80% limit the battery cycles between roughly
   70 and 80%.
+- Keyboard effects use Razer's standard extended-matrix-effect command and are new; they are not
+  yet confirmed on every Blade model. Wave and Spectrum ignore the picked color. If an effect
+  ignores the color or looks choppy, try the "Keyboard effect tuning" switches in Options > Advanced
+  and click the effect again; `log.txt` records which variant was sent.
+- Cooling pad support is new and has only been tried with one pad (USB 1532:0F43). Fan "Auto"
+  (temperature-driven) is not included yet; use Manual or Off.
 - Balanced and Performance can have the same CPU wattage on some laptops; the difference may be
   only fans or GPU behaviour, set by the firmware, not by this app.
 
@@ -172,6 +205,8 @@ Huge thanks to everyone who made this possible:
   Standby (keep your Razer settings without Synapse running in the background). Please support
   their project too: if Synapse Standby saves you time, give
   [SynapseKiller](https://github.com/NxRoot/SynapseKiller) a star on GitHub.
+- **[Robak08](https://github.com/Robak08/r-helper)** - Razer Laptop Cooling Pad support in their
+  R-Helper fork (MIT), the groundwork for the Cooling Pad card.
 - **egui / eframe, image-rs, hidapi-rs, windows-rs, ab_glyph, strum, serde, anyhow, rand, clap,
   embed-resource** - the Rust crates that carry the app.
 - **The Rust project and community.**
