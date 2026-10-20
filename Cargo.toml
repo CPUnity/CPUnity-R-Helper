@@ -1,12 +1,12 @@
 [package]
 name = "r-helper"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
 description = "CPUnity:R-Helper - Razer Blade control interface (fork of R-Helper)"
 authors = ["Fatalution", "CPUnity"]
 
 [[bin]]
-name = "cpunity-rhelper"
+name = "CR-Helper"
 path = "src/main.rs"
 
 [dependencies]
@@ -16,6 +16,8 @@ librazer = { path = "./librazer" }
 image = "0.25.8"
 ab_glyph = "0.2"
 strum = { version = "0.26.1", features = ["derive"] }
+# Game 3's sound: mp3 songs from inside the program, and effects made in synth.rs
+rodio = { version = "0.20", default-features = false, features = ["symphonia-mp3"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.0", features = [

@@ -20,11 +20,15 @@ pub fn render_battery_section(
     let mut action = BatteryAction::None;
 
     crate::theme::card(ui, |ui| {
-        ui.add(egui::Label::new(crate::theme::section_title("🔋 Battery")).selectable(false));
-        ui.separator();
+        let title = if *battery_care {
+            format!("\u{1f50b} Battery  \u{b7}  Limit {}%", *limit)
+        } else {
+            "\u{1f50b} Battery  \u{b7}  Charges to 100%".to_string()
+        };
+        crate::theme::collapsing(ui, "battery_card", crate::theme::section_title(&title), true, |ui| {
 
         ui.horizontal(|ui| {
-            if ui.checkbox(battery_care, "Battery Health Optimizer").clicked() {
+            if crate::theme::toggle(ui, battery_care, "Battery Health Optimizer").clicked() {
                 action = BatteryAction::ToggleBatteryCare;
             }
 
@@ -46,6 +50,7 @@ pub fn render_battery_section(
         });
 
         render_battery_status(ui, *battery_care, *limit);
+        });
     });
 
     action

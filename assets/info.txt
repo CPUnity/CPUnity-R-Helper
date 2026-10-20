@@ -1,0 +1,55 @@
+# The Continuation of Rebellion: CR-Helper
+
+It is my fork of R-Helper by Fatalution: one small portable program that lets you run a Razer Blade without Razer Synapse getting in the way. No installer, nothing hidden. Every place it keeps data is listed in the **Files** tab, and you can open each one with a click.
+
+## Where to start
+
+- **Main:** pick a performance mode for when you are plugged in and one for battery, set the fan, and cap the battery charge.
+- **Lighting:** keyboard and cooling pad effects. CR-Helper never touches your lights until you click something.
+- **Sensors:** switch on **Read sensors** to see temperatures, power limits, clocks and load, with graphs and CSV logs you can look at afterwards in the **Log viewer**.
+- **Files:** where everything lives, and where to tell CR-Helper to find the other programs it reads from. The PawnIO section has a **Get Modules Here** drop-down with the downloads.
+- **Changelog:** what changed, version by version.
+
+## Good to know
+
+- For CPU temperature and power limits you need a source with a kernel driver: HWiNFO, PawnIO, LibreHardwareMonitor, or a ThrottleStop / XTU log. PawnIO needs administrator rights, and Options can start CR-Helper as administrator for you.
+- Logging is always off when CR-Helper starts. It never records anything until you switch it on.
+- Synapse Standby keeps your Synapse settings and can always be undone with **Resume**.
+- If something misbehaves, open the diagnostic log from the **Files** tab and send it along.
+
+# The Rebellion
+
+Software that runs on your own machine should answer to you. Too many companies ship control software that reports back, runs when you never asked it to, and fights the settings you chose. Some people got tired of that and built the replacement themselves. Fatalution was one of them. R-Helper is a small program that does its job and nothing else: no account, no telemetry, nothing sent anywhere.
+
+That is the rebellion, and it matters: ordinary people refusing to put up with software they detest, and building what they wanted in its place.
+
+When Fatalution returned his Razer Blade, plenty of people figured R-Helper went with it. It didn't. I'm carrying it on, because a tool people built for themselves shouldn't die with one person's hardware. CR stands for the Continuation of Rebellion.
+
+Besides, now I'm stuck facing Synapse problems and a failing vapor chamber like the rest of you. Whoop whoop!
+
+# About CPUnity
+
+We're a small company in North Dakota, and we work within our means. We do all things computers, with a bigger message behind it: **unite people behind the PC.**
+
+Everything we do, build, and strive for continues that message. Building a PC is a rite of passage for the kids who dreamed of cyber building, the ones who opened a case before they could spell "motherboard." We keep that door open.
+
+Those kids grow up and raise virtual skyscrapers across the networking landscape: VLANs stacked like floors, switches like steel beams, servers humming behind every window. We believe anyone behind a keyboard can build that tall. We're here so nobody builds it alone.
+
+# CPUnity: Future Endeavors
+
+CR-Helper is the beginning. It is the first software to come officially from CPUnity, and it is far from the last.
+
+Over time, sales will grow alongside the software: hardware, builds, and the parts that put a PC in someone's hands. Every sale goes back into the same message, uniting people behind the PC.
+
+Closer to home, we help local. Anyone in North Dakota who is stuck on a build, a network, or a machine that won't behave can find real hands and a real person at the other end. We'd rather fix it with you than sell you around it.
+
+# Ways to contact
+
+Questions, bug reports, or just saying hi. Bugs are best reported as an issue on the GitHub page, with the **log.txt** from the **Files** tab attached.
+
+@copy Email | cr-helper.github.rename510@passmail.net
+@link GitHub page | https://github.com/CPUnity/CPUnity-R-Helper
+
+## [+] P.S
+
+Shh, CPUnity is secretly run by a stay-at-home dad and a toddler goblin who steals graphics cards. The only thing blowing up for this company is diapers, alright?

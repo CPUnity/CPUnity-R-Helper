@@ -33,8 +33,14 @@ pub fn render_fan_section(
     let mut toggle_max = max_fan_speed_enabled;
 
     crate::theme::card(ui, |ui| {
-        render_fan_header(ui, fan_actual_rpm, fan_set_rpm, show_status_messages);
-        ui.separator();
+        let mode = if fan_speed.eq_ignore_ascii_case("manual") { "Manual" } else { "Auto" };
+        let rpm = fan_actual_rpm.map_or("N/A".to_string(), |r| format!("{} RPM", r));
+        let title = format!("\u{1f300} Fan Control  \u{b7}  {}  \u{b7}  {}", mode, rpm);
+        crate::theme::collapsing(ui, "fan_card", crate::theme::section_title(&title), true, |ui| {
+        if show_status_messages {
+            let set = fan_set_rpm.map_or("Set: Auto".to_string(), |r| format!("Set: {} RPM", r));
+            ui.add(egui::Label::new(RichText::new(set).small().color(Color32::LIGHT_GRAY)).selectable(false));
+        }
         // Fan Mode Selection row with Max on the right
         let available_width = ui.available_width();
         ui.allocate_ui_with_layout(
@@ -86,48 +92,10 @@ pub fn render_fan_section(
         }
 
         render_current_status(ui, fan_speed);
+        });
     });
 
     (action, toggle_max)
-}
-
-fn render_fan_header(
-    ui: &mut egui::Ui,
-    fan_actual_rpm: Option<u16>,
-    fan_set_rpm: Option<u16>,
-    show_status_messages: bool,
-) {
-    ui.horizontal(|ui| {
-        ui.add(egui::Label::new(crate::theme::section_title("🌀 Fan Control")).selectable(false));
-
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if let Some(actual_rpm) = fan_actual_rpm {
-                let rpm_color = calculate_rpm_color(actual_rpm);
-                ui.add(
-                    egui::Label::new(RichText::new(format!("{} RPM", actual_rpm)).color(rpm_color))
-                        .selectable(false),
-                );
-            } else {
-                ui.add(egui::Label::new(RichText::new("N/A")).selectable(false));
-            }
-
-            if show_status_messages {
-                if let Some(set_rpm) = fan_set_rpm {
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(format!("Set: {} |", set_rpm)).color(Color32::LIGHT_GRAY),
-                        )
-                        .selectable(false),
-                    );
-                } else {
-                    ui.add(
-                        egui::Label::new(RichText::new("Set: Auto |").color(Color32::LIGHT_GRAY))
-                            .selectable(false),
-                    );
-                }
-            }
-        });
-    });
 }
 
 // (Removed old separate render_fan_mode_controls; integrated directly for alignment needs)
@@ -154,6 +122,7 @@ fn render_current_status(ui: &mut egui::Ui, fan_speed: &str) {
     ui.add(egui::Label::new(format!("Current: {}", fan_speed)).selectable(false));
 }
 
+#[allow(dead_code)]
 fn calculate_rpm_color(actual_rpm: u16) -> Color32 {
     let normalized_rpm = ((actual_rpm as f32 - MIN_RPM_FOR_COLOR)
         / (MAX_RPM_FOR_COLOR - MIN_RPM_FOR_COLOR))

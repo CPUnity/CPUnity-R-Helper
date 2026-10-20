@@ -19,7 +19,7 @@ jobs:
         run: |
           $name = "CPUnity-R-Helper-${{ github.ref_name }}-windows-x64"
           New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
-          Copy-Item target/release/cpunity-rhelper.exe "dist/$name/"
+          Copy-Item target/release/CR-Helper.exe "dist/$name/"
           Copy-Item README.md, CHANGELOG.md, LICENSE, NOTICE, THIRD_PARTY_LICENSES.md "dist/$name/"
           Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
       - uses: softprops/action-gh-release@v2

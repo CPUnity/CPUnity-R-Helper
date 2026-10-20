@@ -26,6 +26,9 @@ fn read_device_model() -> Result<String> {
 /// Razer Chroma/Synapse talk to the same device). Exposed for diagnostics.
 static RETRY_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// Serializes HID exchanges between threads (see `Device::send`).
+static BUS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub fn retry_count() -> u64 {
     RETRY_COUNT.load(std::sync::atomic::Ordering::Relaxed)
 }
@@ -61,28 +64,35 @@ impl Device {
         const MAX_RETRIES: usize = 5;
 
         for attempt in 0..MAX_RETRIES {
-            thread::sleep(time::Duration::from_micros(1000));
+            // One request/response exchange at a time across every handle in this process, so
+            // the keyboard animation thread and the UI thread's polling cannot get each other's
+            // replies. Released before any back-off sleep.
+            let response = {
+                let _bus = BUS.lock().unwrap_or_else(|e| e.into_inner());
 
-            self.device
-                .send_feature_report(
-                    [0_u8; 1] // report id
-                        .iter()
-                        .copied()
-                        .chain(Into::<Vec<u8>>::into(&report).into_iter())
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                )
-                .context("Failed to send feature report")?;
+                thread::sleep(time::Duration::from_micros(1000));
 
-            thread::sleep(time::Duration::from_micros(2000));
+                self.device
+                    .send_feature_report(
+                        [0_u8; 1] // report id
+                            .iter()
+                            .copied()
+                            .chain(Into::<Vec<u8>>::into(&report).into_iter())
+                            .collect::<Vec<_>>()
+                            .as_slice(),
+                    )
+                    .context("Failed to send feature report")?;
 
-            let response_size = self.device.get_feature_report(&mut response_buf)?;
-            if response_buf.len() != response_size {
-                return Err(anyhow!("Response size != {}", response_buf.len()));
-            }
+                thread::sleep(time::Duration::from_micros(2000));
 
-            // skip report id byte
-            let response = <&[u8] as TryInto<Packet>>::try_into(&response_buf[1..])?;
+                let response_size = self.device.get_feature_report(&mut response_buf)?;
+                if response_buf.len() != response_size {
+                    return Err(anyhow!("Response size != {}", response_buf.len()));
+                }
+
+                // skip report id byte
+                <&[u8] as TryInto<Packet>>::try_into(&response_buf[1..])?
+            };
             //println!("Response {:?}", response);
 
             if response.ensure_matches_report(&report).is_ok() {
@@ -102,6 +112,35 @@ impl Device {
         }
 
         Err(anyhow!("Failed to send feature report"))
+    }
+
+    /// A faster `send` for animation frames: no pre-delay, a shorter wait before the reply is
+    /// read, and a single attempt (a frame the keyboard answers "busy" to is simply dropped; the
+    /// next frame replaces it). Returns an error when the reply does not match.
+    pub fn send_quick(&self, report: Packet) -> Result<Packet> {
+        let mut response_buf: Vec<u8> = vec![0x00; 1 + std::mem::size_of::<Packet>()];
+        let _bus = BUS.lock().unwrap_or_else(|e| e.into_inner());
+
+        self.device
+            .send_feature_report(
+                [0_u8; 1] // report id
+                    .iter()
+                    .copied()
+                    .chain(Into::<Vec<u8>>::into(&report).into_iter())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            )
+            .context("Failed to send feature report")?;
+
+        thread::sleep(time::Duration::from_micros(500));
+
+        let response_size = self.device.get_feature_report(&mut response_buf)?;
+        if response_buf.len() != response_size {
+            return Err(anyhow!("Response size != {}", response_buf.len()));
+        }
+        let response = <&[u8] as TryInto<Packet>>::try_into(&response_buf[1..])?;
+        response.ensure_matches_report(&report)?;
+        Ok(response)
     }
 
     pub fn enumerate() -> Result<(Vec<u16>, String)> {

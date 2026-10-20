@@ -8,9 +8,11 @@ pub fn get_power_state() -> Result<bool> {
     unsafe {
         let mut status: SYSTEM_POWER_STATUS = std::mem::zeroed();
         if GetSystemPowerStatus(&mut status).is_ok() {
-            Ok(status.ACLineStatus == 1)
+            // 255 means "Windows does not know yet": an error, never "on battery"
+            crate::power_plan::ac_flag(status.ACLineStatus)
+                .ok_or_else(|| anyhow::anyhow!("charger state unknown"))
         } else {
-            Ok(true)
+            Err(anyhow::anyhow!("GetSystemPowerStatus failed"))
         }
     }
 }

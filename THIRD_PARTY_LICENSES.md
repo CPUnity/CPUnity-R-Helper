@@ -26,3 +26,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+2) Music and sound (embedded in the program)
+- Source: Pixabay (https://pixabay.com), under the Pixabay Content License
+  (https://pixabay.com/service/license-summary/): free to use and modify, no attribution required,
+  not to be redistributed as standalone files. They are compiled into the program and are not
+  shipped as separate files. Credited here anyway:
+- "Dubstep - Dubstep Music" by lNPLUSMUSIC - https://pixabay.com/music/electronic-dubstep-dubstep-music-613063/
+- "Heavy Dubstep Bass Drop EDM" by alex-morgan - https://pixabay.com/music/dubstep-heavy-dubstep-bass-drop-edm-530942/
+- "Dark Organ Crescendo w/ Dark Void" by u_v0z5tonc8a - https://pixabay.com/music/solo-instruments-dark-organ-crescendo-w-dark-void-275423/
+- "Chrysalyn - Devil Story Intro (Deep Forest Eerie Sound)" - Pixabay sound effect 547382

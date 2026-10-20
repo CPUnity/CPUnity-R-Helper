@@ -38,8 +38,10 @@ pub fn render_performance_section(
     let mut action = PerformanceAction::None;
 
     crate::theme::card(ui, |ui| {
+        let power = if ac_power { "AC Power" } else { "Battery" };
+        let title = format!("\u{1f680} Performance Mode  \u{b7}  {}  \u{b7}  {}", current_performance_mode, power);
+        crate::theme::collapsing(ui, "performance_card", crate::theme::section_title(&title), true, |ui| {
         render_performance_header(ui, ac_power, debug_mode);
-        ui.separator();
 
         // Performance Mode Selection
         action = render_performance_modes(
@@ -76,6 +78,7 @@ pub fn render_performance_section(
                 action = custom_action;
             }
         }
+        });
     });
 
     action
@@ -110,7 +113,7 @@ fn render_custom_boosts(
                 let selected = boost == current_cpu;
                 let color = get_button_color(ac_power, selected);
                 let style_text = if selected {
-                    egui::RichText::new(label).color(Color32::WHITE)
+                    egui::RichText::new(label).color(theme::label_on(color))
                 } else {
                     egui::RichText::new(label).italics().color(Color32::from_gray(170))
                 };
@@ -138,7 +141,7 @@ fn render_custom_boosts(
                     let selected = boost == current_cpu;
                     let color = get_button_color(ac_power, selected);
                     let mut btn =
-                        egui::Button::new(egui::RichText::new(&label).color(Color32::WHITE));
+                        egui::Button::new(egui::RichText::new(&label).color(theme::label_on(color)));
                     btn = btn
                         .fill(if selected { color } else { Color32::TRANSPARENT })
                         .stroke(egui::Stroke::new(1.0, color));
@@ -174,7 +177,7 @@ fn render_custom_boosts(
             let label = format!("{:?}", boost);
             let selected = boost == current_gpu;
             let color = get_button_color(ac_power, selected);
-            let mut btn = egui::Button::new(egui::RichText::new(&label).color(Color32::WHITE));
+            let mut btn = egui::Button::new(egui::RichText::new(&label).color(theme::label_on(color)));
             btn = btn
                 .fill(if selected { color } else { Color32::TRANSPARENT })
                 .stroke(egui::Stroke::new(1.0, color));
@@ -203,13 +206,9 @@ fn render_custom_boosts(
     out
 }
 
-// Renders the performance section header with power status
+// Renders the power status row at the top of the performance section (the title is the drop-down's)
 fn render_performance_header(ui: &mut egui::Ui, ac_power: bool, show_probe_button: bool) {
     ui.horizontal(|ui| {
-        ui.add(
-            egui::Label::new(crate::theme::section_title("🚀 Performance Mode")).selectable(false),
-        );
-
         // Power status indicator
         let (power_icon, power_color) =
             if ac_power { ("🔌", Color32::GREEN) } else { ("🔋", ORANGE_COLOR) };
@@ -282,7 +281,7 @@ fn render_performance_modes(
                     egui::Button::new(RichText::new(&mode_str).color(if is_hidden && !selected {
                         Color32::from_gray(160)
                     } else {
-                        Color32::WHITE
+                        theme::label_on(button_color)
                     }));
                 btn = btn.fill(if selected { button_color } else { Color32::TRANSPARENT }).stroke(
                     egui::Stroke::new(
@@ -310,7 +309,7 @@ fn render_performance_modes(
                     egui::Button::new(RichText::new(&mode_str).color(if is_hidden && !selected {
                         Color32::from_gray(160)
                     } else {
-                        Color32::WHITE
+                        theme::label_on(button_color)
                     }));
                 btn = btn.fill(if selected { button_color } else { Color32::TRANSPARENT }).stroke(
                     egui::Stroke::new(
@@ -342,7 +341,7 @@ fn render_performance_modes(
                         if selected { theme::accent_muted_fill() } else { Color32::TRANSPARENT };
                     let stroke_color =
                         if selected { theme::accent_stroke() } else { Color32::from_gray(80) };
-                    let btn = egui::Button::new(RichText::new(&custom_str).color(Color32::WHITE))
+                    let btn = egui::Button::new(RichText::new(&custom_str).color(theme::label_on(fill_color)))
                         .fill(fill_color)
                         .stroke(egui::Stroke::new(1.0, stroke_color));
                     let response = ui.add(btn);

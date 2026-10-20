@@ -12,5 +12,5 @@ jobs:
       - run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: cpunity-rhelper
-          path: target/release/cpunity-rhelper.exe
+          name: CR-Helper
+          path: target/release/CR-Helper.exe

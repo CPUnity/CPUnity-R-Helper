@@ -19,16 +19,16 @@ pub fn render_synapse_section(
     let mut action = SynapseAction::None;
 
     crate::theme::card(ui, |ui| {
-        ui.add(
-            egui::Label::new(crate::theme::section_title("🛡 Razer Synapse Standby"))
-                .selectable(false),
-        );
-        ui.separator();
+        crate::theme::collapsing(
+            ui,
+            "synapse_card",
+            crate::theme::section_title("🛡 Razer Synapse Standby"),
+            true,
+            |ui| {
+                let (text, color) = status_text(status);
+                ui.add(egui::Label::new(RichText::new(text).color(color)).selectable(false));
 
-        let (text, color) = status_text(status);
-        ui.add(egui::Label::new(RichText::new(text).color(color)).selectable(false));
-
-        ui.horizontal(|ui| {
+                ui.horizontal(|ui| {
             ui.add_enabled_ui(!status.busy, |ui| {
                 if ui
                     .button("Standby")
@@ -50,15 +50,14 @@ pub fn render_synapse_section(
             }
         });
 
-        ui.add_enabled_ui(!status.busy, |ui| {
-            ui.checkbox(keep_lighting, "Keep Chroma lighting running").on_hover_text(
+                ui.add_enabled_ui(!status.busy, |ui| {
+            crate::theme::toggle(ui, keep_lighting, "Keep Chroma lighting running").on_hover_text(
                 "Leaves only the Chroma half of the Razer engine alive so animated effects keep \
                  working. Off = everything Razer is stopped (static / onboard lighting only).",
             );
 
             let mut guard = status.guard;
-            if ui
-                .checkbox(&mut guard, "Auto-park at every boot / logon")
+            if crate::theme::toggle(ui, &mut guard, "Auto-park at every boot / logon")
                 .on_hover_text(
                     "Installs a startup task that re-applies Standby, so Synapse updates can't \
                      quietly re-enable themselves. Uses the lighting option as set when you tick it.",
@@ -69,12 +68,14 @@ pub fn render_synapse_section(
             }
         });
 
-        if let Some(msg) = &status.message {
-            ui.add(
-                egui::Label::new(RichText::new(msg).color(Color32::from_rgb(220, 120, 80)))
-                    .selectable(false),
-            );
-        }
+                if let Some(msg) = &status.message {
+                    ui.add(
+                        egui::Label::new(RichText::new(msg).color(Color32::from_rgb(220, 120, 80)))
+                            .selectable(false),
+                    );
+                }
+            },
+        );
     });
 
     action
